@@ -13,6 +13,7 @@ enum CTokenType {
     Invalid,
     StreamBegin,
     StreamEnd,
+    Number(String),
 }
 
 pub struct CToken {
@@ -241,8 +242,32 @@ impl CStream {
         return self.nextchar_slow();
     }
 
-    pub fn get_one_number(&mut self, _c1: i32, _c2: i32) -> i32 {
-        -1
+    pub fn get_one_number(&mut self, c: i32, mut next: i32) -> i32 {
+        let mut numstr = String::with_capacity(80);
+
+        numstr.push((c as u8) as char);
+        loop {
+            let class = classify_char(next);
+            if (class & (CC_DOT | CC_DIGIT | CC_LETTER)) == 0 {
+                break;
+            }
+
+            numstr.push((next as u8) as char);
+            next = self.nextchar();
+            if (class & CC_EXP) != 0 {
+                let next_ch = (next as u8) as char;
+                if next_ch == '-' || next_ch == '+' {
+                    numstr.push(next_ch);
+                    next = self.nextchar();
+                }
+            }
+        }
+
+        self.tokenlist.push(CToken {
+            ttype: CTokenType::Number(numstr),
+        });
+
+        next
     }
 
     pub fn get_one_identifier(&mut self, _c: i32) -> i32 {
