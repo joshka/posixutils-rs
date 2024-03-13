@@ -16,3 +16,7 @@ object = "0.33"
 name = "nm"
 path = "src/nm.rs"
 
+[[bin]]
+name = "c99"
+path = "src/c99.rs"
+
