@@ -8,6 +8,7 @@
 //
 
 const TABSTOP: i32 = 8;
+const EOF: i32 = -1;
 
 enum CTokenType {
     Invalid,
@@ -122,7 +123,7 @@ impl CStream {
     pub fn nextchar_slow(&mut self) -> i32 {
         let size = self.size;
         let mut offset = self.offset;
-        let mut c: i32 = -1;
+        let mut c: i32 = EOF;
         let mut spliced = false;
         let mut had_cr = false;
         let mut had_backslash = false;
@@ -216,7 +217,7 @@ impl CStream {
 
                     // TODO pass no-newline-at-EOF warnings
 
-                    return -1;
+                    return EOF;
                 }
             }
         }
@@ -240,6 +241,18 @@ impl CStream {
         }
 
         return self.nextchar_slow();
+    }
+
+    pub fn drop_comment(&mut self) -> i32 {
+        EOF // TODO
+    }
+
+    pub fn drop_eoln(&mut self) -> i32 {
+        EOF // TODO
+    }
+
+    pub fn eat_string(&mut self, _next: i32, _is_str: bool, _is_wide: bool) -> i32 {
+        EOF // TODO
     }
 
     pub fn get_one_number(&mut self, c: i32, mut next: i32) -> i32 {
@@ -270,12 +283,43 @@ impl CStream {
         next
     }
 
-    pub fn get_one_identifier(&mut self, _c: i32) -> i32 {
-        -1
+    pub fn get_one_special(&mut self, c: i32) -> i32 {
+        let next = self.nextchar();
+        let next_ch = (next as u8) as char;
+        match (c as u8) as char {
+            '.' => {
+                if next_ch >= '0' && next_ch <= '9' {
+                    return self.get_one_number(c, next);
+                }
+            }
+            '"' => {
+                return self.eat_string(next, true, false);
+            }
+            '\'' => {
+                return self.eat_string(next, false, false);
+            }
+            '/' => {
+                if next_ch == '/' {
+                    return self.drop_eoln();
+                }
+                if next_ch == '*' {
+                    return self.drop_comment();
+                }
+            }
+            _ => {}
+        }
+
+        let mut value = c;
+        let mask = classify_char(next);
+        if (mask & CC_SECOND) != 0 {
+            // TODO
+        }
+
+        EOF
     }
 
-    pub fn get_one_special(&mut self, _c: i32) -> i32 {
-        -1
+    pub fn get_one_identifier(&mut self, _c: i32) -> i32 {
+        EOF // TODO
     }
 
     pub fn get_one_token(&mut self, c: i32) -> i32 {
