@@ -55,6 +55,47 @@ enum NcState {
     GotEOF,
 }
 
+const CC_DIGIT: u32 = 1 << 0;
+const CC_LETTER: u32 = 1 << 1;
+const CC_HEX: u32 = 1 << 2;
+const CC_EXP: u32 = 1 << 3;
+const CC_SECOND: u32 = 1 << 4;
+const CC_QUOTE: u32 = 1 << 5;
+const CC_DOT: u32 = 1 << 6;
+
+fn classify_char(c32: i32) -> u32 {
+    let ch = (c32 as u8) as char;
+
+    match ch {
+        '0'..='9' => CC_DIGIT | CC_HEX,
+        'A'..='D' => CC_LETTER | CC_HEX,
+        'E' => CC_LETTER | CC_HEX | CC_EXP, /* E<exp> */
+        'F' => CC_LETTER | CC_HEX,
+        'G'..='O' => CC_LETTER,
+        'P' => CC_LETTER | CC_EXP, /* P<exp> */
+        'Q'..='Z' => CC_LETTER,
+        'a'..='d' => CC_LETTER | CC_HEX,
+        'e' => CC_LETTER | CC_HEX | CC_EXP, /* e<exp> */
+        'f' => CC_LETTER | CC_HEX,
+        'g'..='o' => CC_LETTER,
+        'p' => CC_LETTER | CC_EXP, /* p<exp> */
+        'q'..='z' => CC_LETTER,
+        '_' => CC_LETTER,
+        '.' => CC_DOT | CC_SECOND,
+        '=' => CC_SECOND,
+        '+' => CC_SECOND,
+        '-' => CC_SECOND,
+        '>' => CC_SECOND,
+        '<' => CC_SECOND,
+        '&' => CC_SECOND,
+        '|' => CC_SECOND,
+        '#' => CC_SECOND,
+        '\'' => CC_QUOTE,
+        '"' => CC_QUOTE,
+        _ => 0,
+    }
+}
+
 impl CStream {
     pub fn from_buffer(idx: i32, buf: Vec<u8>) -> CStream {
         CStream {
@@ -200,8 +241,31 @@ impl CStream {
         return self.nextchar_slow();
     }
 
-    pub fn get_one_token(&mut self, _c: i32) -> i32 {
+    pub fn get_one_number(&mut self, _c1: i32, _c2: i32) -> i32 {
         -1
+    }
+
+    pub fn get_one_identifier(&mut self, _c: i32) -> i32 {
+        -1
+    }
+
+    pub fn get_one_special(&mut self, _c: i32) -> i32 {
+        -1
+    }
+
+    pub fn get_one_token(&mut self, c: i32) -> i32 {
+        let mask = classify_char(c);
+        assert!(mask != 0);
+
+        if (mask & CC_DIGIT) != 0 {
+            let c2 = self.nextchar();
+            return self.get_one_number(c, c2);
+        }
+        if (mask & CC_LETTER) != 0 {
+            return self.get_one_identifier(c);
+        }
+
+        return self.get_one_special(c);
     }
 
     pub fn tokenize(&mut self) {
