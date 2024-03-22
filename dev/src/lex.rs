@@ -42,6 +42,8 @@ struct Args {
 struct LexInfo {
     external_def: Vec<String>,
     subs: HashMap<String, String>,
+    internal_defs: Vec<String>,
+    user_subs: Vec<String>,
 }
 
 impl LexInfo {
@@ -49,6 +51,8 @@ impl LexInfo {
         LexInfo {
             external_def: state.external_def.clone(),
             subs: state.subs.clone(),
+            internal_defs: state.internal_defs.clone(),
+            user_subs: state.user_subs.clone(),
         }
     }
 }
@@ -67,6 +71,8 @@ struct ParseState {
     external_def: Vec<String>,
     sub_re: Regex,
     subs: HashMap<String, String>,
+    internal_defs: Vec<String>,
+    user_subs: Vec<String>,
 }
 
 impl ParseState {
@@ -77,6 +83,8 @@ impl ParseState {
             external_def: Vec::new(),
             sub_re: Regex::new(r"(\w+)\s+(.*)").unwrap(),
             subs: HashMap::new(),
+            internal_defs: Vec::new(),
+            user_subs: Vec::new(),
         }
     }
 }
@@ -122,11 +130,45 @@ fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str
     Ok(())
 }
 
-fn parse_rule_line(_state: &mut ParseState, _line: &str) -> Result<(), &'static str> {
+fn parse_rule_line(state: &mut ParseState, line: &str) -> Result<(), &'static str> {
+    if line.len() == 0 {
+        return Ok(());
+    }
+
+    let mut char_iter = line.chars();
+    let first_char = char_iter.next().unwrap();
+
+    if first_char == '%' {
+        let mut words = Vec::new();
+        for word in line.split_whitespace() {
+            words.push(String::from(word));
+        }
+
+        let cmd = words.remove(0);
+        match cmd.as_str() {
+            "%{" => {
+                state.in_def = true;
+            }
+            "%}" => {
+                state.in_def = false;
+            }
+            "%%" => {
+                state.section = LexSection::UserCode;
+            }
+            _ => {
+                eprintln!("Unexpected command in Rules section: {}", cmd);
+            }
+        }
+    } else if state.in_def || (first_char.is_whitespace() && line.len() > 1) {
+        state.internal_defs.push(String::from(line));
+    } else {
+        eprintln!("Ignoring line in rules section: {}", line);
+    }
     Ok(())
 }
 
-fn parse_user_line(_state: &mut ParseState, _line: &str) -> Result<(), &'static str> {
+fn parse_user_line(state: &mut ParseState, line: &str) -> Result<(), &'static str> {
+    state.user_subs.push(String::from(line));
     Ok(())
 }
 
