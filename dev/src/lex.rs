@@ -14,7 +14,7 @@ use clap::Parser;
 use gettextrs::{bind_textdomain_codeset, textdomain};
 use plib::PROJECT_NAME;
 use std::fs;
-use std::io::Read;
+use std::io::{self, Read};
 
 /// lex - generate programs for lexical tasks
 #[derive(Parser, Debug)]
@@ -37,7 +37,7 @@ struct Args {
 }
 
 // concatenate input files, handling special filename "-" as stdin
-fn concat_input_files(files: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+fn concat_input_files(files: &[String]) -> io::Result<String> {
     let mut input = String::new();
     for file in files {
         if file == "-" {
