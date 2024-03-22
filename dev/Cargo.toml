@@ -11,6 +11,7 @@ plib = { path = "../plib" }
 clap = { version = "4", features = ["derive"] }
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 object = "0.33"
+regex = "1.10"
 
 [[bin]]
 name = "lex"

@@ -596,6 +596,7 @@ dependencies = [
  "gettext-rs",
  "object",
  "plib",
+ "regex",
 ]
 
 [[package]]
