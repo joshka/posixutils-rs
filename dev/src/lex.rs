@@ -94,8 +94,7 @@ fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str
         return Ok(());
     }
 
-    let mut char_iter = line.chars();
-    let first_char = char_iter.next().unwrap();
+    let first_char = line.chars().next().unwrap();
 
     if first_char == '%' {
         let mut words = Vec::new();
@@ -135,8 +134,7 @@ fn parse_rule_line(state: &mut ParseState, line: &str) -> Result<(), &'static st
         return Ok(());
     }
 
-    let mut char_iter = line.chars();
-    let first_char = char_iter.next().unwrap();
+    let first_char = line.chars().next().unwrap();
 
     if first_char == '%' {
         let mut words = Vec::new();
