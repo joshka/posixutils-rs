@@ -38,12 +38,28 @@ struct Args {
     files: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct LexRule {
+    ere: String,
+    action: String,
+}
+
+impl LexRule {
+    fn new() -> LexRule {
+        LexRule {
+            ere: String::new(),
+            action: String::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct LexInfo {
     external_def: Vec<String>,
     subs: HashMap<String, String>,
     internal_defs: Vec<String>,
     user_subs: Vec<String>,
+    rules: Vec<LexRule>,
 }
 
 impl LexInfo {
@@ -53,6 +69,7 @@ impl LexInfo {
             subs: state.subs.clone(),
             internal_defs: state.internal_defs.clone(),
             user_subs: state.user_subs.clone(),
+            rules: state.rules.clone(),
         }
     }
 }
@@ -67,25 +84,38 @@ enum LexSection {
 #[derive(Debug)]
 struct ParseState {
     section: LexSection,
+    open_braces: u32,
     in_def: bool,
     external_def: Vec<String>,
     sub_re: Regex,
     subs: HashMap<String, String>,
     internal_defs: Vec<String>,
     user_subs: Vec<String>,
+    rules: Vec<LexRule>,
+    tmp_rule: LexRule,
 }
 
 impl ParseState {
     fn new() -> ParseState {
         ParseState {
             section: LexSection::Definitions,
+            open_braces: 0,
             in_def: false,
             external_def: Vec::new(),
             sub_re: Regex::new(r"(\w+)\s+(.*)").unwrap(),
             subs: HashMap::new(),
             internal_defs: Vec::new(),
             user_subs: Vec::new(),
+            rules: Vec::new(),
+            tmp_rule: LexRule::new(),
         }
+    }
+
+    fn push_rule(&mut self, ere: &str, action: &str) {
+        self.rules.push(LexRule {
+            ere: String::from(ere),
+            action: String::from(action),
+        });
     }
 }
 
@@ -129,6 +159,90 @@ fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str
     Ok(())
 }
 
+fn parse_braces(open_braces: u32, line: &str) -> Result<u32, &'static str> {
+    let mut open_braces = open_braces;
+    for c in line.chars() {
+        if c == '{' {
+            open_braces += 1;
+        } else if c == '}' {
+            if open_braces == 0 {
+                return Err("Unmatched closing brace");
+            }
+            open_braces -= 1;
+        }
+    }
+    Ok(open_braces)
+}
+
+#[derive(PartialEq)]
+enum RegexType {
+    Square,
+    Paren,
+    Curly,
+}
+
+// find the end of the regex in a rule line, by matching [ and ( and { and }
+fn find_ere_end(line: &str) -> Result<usize, &'static str> {
+    let mut stack: Vec<RegexType> = Vec::new();
+    let mut inside_brackets = false;
+
+    eprintln!("find_ere_end: {}", line);
+
+    for (i, ch) in line.chars().enumerate() {
+        match ch {
+            '[' => {
+                if !inside_brackets {
+                    stack.push(RegexType::Square);
+                    inside_brackets = true;
+                }
+            }
+            '(' => {
+                if !inside_brackets {
+                    stack.push(RegexType::Paren);
+                }
+            }
+            '{' => {
+                if !inside_brackets {
+                    stack.push(RegexType::Curly);
+                }
+            }
+            ']' => {
+                inside_brackets = false;
+                if stack.pop() != Some(RegexType::Square) {
+                    return Err("Unmatched closing square bracket");
+                }
+            }
+            ')' => {
+                if !inside_brackets && stack.pop() != Some(RegexType::Paren) {
+                    return Err("Unmatched closing parenthesis");
+                }
+            }
+            '}' => {
+                if !inside_brackets && stack.pop() != Some(RegexType::Curly) {
+                    return Err("Unmatched closing curly brace");
+                }
+            }
+            _ => {
+                if ch.is_whitespace() && stack.is_empty() {
+                    return Ok(i);
+                }
+            }
+        }
+    }
+
+    Err("Unterminated regular expression")
+}
+
+fn parse_rule(line: &str) -> Result<(String, String, u32), &'static str> {
+    let pos = find_ere_end(line)?;
+    let ere = String::from(&line[..pos]);
+    let action_ws = String::from(&line[pos..]);
+    let action = action_ws.trim_start();
+    let open_braces = parse_braces(0, action)?;
+
+    Ok((ere.to_string(), action.to_string(), open_braces))
+}
+
 fn parse_rule_line(state: &mut ParseState, line: &str) -> Result<(), &'static str> {
     if line.len() == 0 {
         return Ok(());
@@ -157,10 +271,27 @@ fn parse_rule_line(state: &mut ParseState, line: &str) -> Result<(), &'static st
                 eprintln!("Unexpected command in Rules section: {}", cmd);
             }
         }
+    } else if state.open_braces > 0 {
+        state.tmp_rule.action.push_str(line);
+        state.open_braces = parse_braces(state.open_braces, line)?;
+        if state.open_braces == 0 {
+            let ere = state.tmp_rule.ere.clone();
+            let action = state.tmp_rule.action.clone();
+            state.push_rule(&ere, &action);
+            state.tmp_rule = LexRule::new();
+        }
     } else if state.in_def || (first_char.is_whitespace() && line.len() > 1) {
         state.internal_defs.push(String::from(line));
+    } else if line.trim().is_empty() {
+        return Ok(());
     } else {
-        eprintln!("Ignoring line in rules section: {}", line);
+        let (ere, action, open_braces) = parse_rule(line)?;
+        if open_braces == 0 {
+            state.push_rule(&ere, &action);
+        } else {
+            state.tmp_rule = LexRule { ere, action };
+            state.open_braces = open_braces;
+        }
     }
     Ok(())
 }
@@ -199,7 +330,7 @@ fn concat_input_files(files: &[String]) -> io::Result<Vec<String>> {
     let mut input = Vec::new();
 
     for filename in files {
-        let mut file: Box<dyn Read>;
+        let file: Box<dyn Read>;
         if filename == "-" {
             file = Box::new(io::stdin().lock());
         } else {
