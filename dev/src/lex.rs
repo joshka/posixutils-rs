@@ -58,6 +58,9 @@ struct LexInfo {
     external_def: Vec<String>,
     subs: HashMap<String, String>,
     internal_defs: Vec<String>,
+    cond_start: Vec<String>,
+    cond_xstart: Vec<String>,
+    yyt_is_ptr: bool,
     user_subs: Vec<String>,
     rules: Vec<LexRule>,
 }
@@ -68,6 +71,9 @@ impl LexInfo {
             external_def: state.external_def.clone(),
             subs: state.subs.clone(),
             internal_defs: state.internal_defs.clone(),
+            cond_start: state.cond_start.clone(),
+            cond_xstart: state.cond_xstart.clone(),
+            yyt_is_ptr: state.yyt_is_ptr,
             user_subs: state.user_subs.clone(),
             rules: state.rules.clone(),
         }
@@ -91,6 +97,9 @@ struct ParseState {
     subs: HashMap<String, String>,
     internal_defs: Vec<String>,
     user_subs: Vec<String>,
+    cond_start: Vec<String>,
+    cond_xstart: Vec<String>,
+    yyt_is_ptr: bool,
     rules: Vec<LexRule>,
     tmp_rule: LexRule,
 }
@@ -106,6 +115,9 @@ impl ParseState {
             subs: HashMap::new(),
             internal_defs: Vec::new(),
             user_subs: Vec::new(),
+            cond_start: Vec::new(),
+            cond_xstart: Vec::new(),
+            yyt_is_ptr: true,
             rules: Vec::new(),
             tmp_rule: LexRule::new(),
         }
@@ -133,7 +145,7 @@ fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str
         }
 
         let cmd = words.remove(0);
-        match cmd.as_str() {
+        match cmd.to_lowercase().as_str() {
             "%{" => {
                 state.in_def = true;
             }
@@ -142,6 +154,21 @@ fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str
             }
             "%%" => {
                 state.section = LexSection::Rules;
+            }
+            "%s" | "%start" => {
+                state.cond_start = words;
+            }
+            "%x" => {
+                state.cond_xstart = words;
+            }
+            "%array" => {
+                state.yyt_is_ptr = false;
+            }
+            "%pointer" => {
+                state.yyt_is_ptr = true;
+            }
+            "%p" | "%n" | "%a" | "%e" | "%k" | "%o" => {
+                // do nothing; skip these
             }
             _ => {
                 eprintln!("Unexpected command in definitions section: {}", cmd);
