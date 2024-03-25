@@ -15,10 +15,13 @@ use clap::Parser;
 use gettextrs::{bind_textdomain_codeset, textdomain};
 use plib::PROJECT_NAME;
 use regex::Regex;
-use regex_syntax::hir::{self, Hir};
+use regex_syntax::hir::{self, Class, ClassUnicode, Hir};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read};
+
+const YYLVAR: &'static str = "yyl";
+const YYLCONST: &'static str = "YYL";
 
 /// lex - generate programs for lexical tasks
 #[derive(Parser, Debug)]
@@ -485,25 +488,39 @@ fn gather_literals(hir: &Hir) -> Vec<hir::Literal> {
     literals
 }
 
+// add class to vec, with de-duplication
+fn add_class(classes: &mut Vec<hir::Class>, class: hir::Class) {
+    if !classes.contains(&class) {
+        classes.push(class);
+    }
+}
+
+// add a vec of classes to another vec, with de-duplication
+fn add_classes(classes: &mut Vec<hir::Class>, new_classes: &Vec<hir::Class>) {
+    for class in new_classes {
+        add_class(classes, class.clone());
+    }
+}
+
 fn gather_classes(hir: &Hir) -> Vec<hir::Class> {
     let mut classes = Vec::new();
 
     match hir.kind() {
         hir::HirKind::Class(class) => {
-            classes.push(class.clone());
+            add_class(&mut classes, class.clone());
         }
         hir::HirKind::Concat(concat) => {
             for hir in concat.iter() {
-                classes.append(&mut gather_classes(hir));
+                add_classes(&mut classes, &gather_classes(hir));
             }
         }
         hir::HirKind::Alternation(alt) => {
             for hir in alt.iter() {
-                classes.append(&mut gather_classes(hir));
+                add_classes(&mut classes, &gather_classes(hir));
             }
         }
         hir::HirKind::Repetition(rep) => {
-            classes.append(&mut gather_classes(&rep.sub));
+            add_classes(&mut classes, &gather_classes(&rep.sub));
         }
         _ => {}
     }
@@ -540,6 +557,99 @@ fn process_lex_info(lexinfo: &LexInfo) -> Result<LexState, String> {
     Ok(lexstate)
 }
 
+fn extract_ranges(cls: &ClassUnicode) -> Vec<(char, char)> {
+    let mut ranges = Vec::new();
+
+    for val in cls.iter() {
+        ranges.push((val.start(), val.end()));
+    }
+
+    ranges
+}
+
+fn write_lexer_char_class_unicode(
+    output: &mut Box<dyn io::Write>,
+    i: usize,
+    ranges: Vec<(char, char)>,
+) -> io::Result<()> {
+    writeln!(output, "/* Char class {} */", i)?;
+    writeln!(
+        output,
+        r#"static bool {}_class_{}(char ch)
+{{
+	switch (ch) {{"#,
+        YYLVAR, i
+    )?;
+
+    for (start, end) in ranges {
+        if start == end {
+            writeln!(output, "\t\tcase '{}':", start)?;
+        } else {
+            writeln!(output, "\t\tcase '{}' ... '{}':", start, end)?;
+        }
+    }
+
+    writeln!(output, "\t\t\treturn true;")?;
+    writeln!(output, "\t\tdefault:")?;
+    writeln!(output, "\t\t\treturn false;")?;
+    writeln!(output, "\t}}")?;
+    writeln!(output, "}}\n")?;
+
+    Ok(())
+}
+
+fn write_lexer_char_classes(
+    output: &mut Box<dyn io::Write>,
+    lexstate: &LexState,
+    lexinfo: &LexInfo,
+) -> io::Result<()> {
+    writeln!(output, "/* Rules - char classes */")?;
+    for (i, cls) in lexstate.classes.iter().enumerate() {
+        match cls {
+            Class::Unicode(val) => {
+                let ranges = extract_ranges(val);
+                write_lexer_char_class_unicode(output, i, ranges)?;
+            }
+            Class::Bytes(val) => {
+                todo!();
+            }
+
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn write_lexer_literals(
+    output: &mut Box<dyn io::Write>,
+    lexstate: &LexState,
+    lexinfo: &LexInfo,
+) -> io::Result<()> {
+    writeln!(output, "/* Rules - literals */")?;
+    let n_literals = lexstate.literals.len();
+    writeln!(output, "#define {}_N_LITERALS {}", YYLCONST, n_literals)?;
+    writeln!(
+        output,
+        r#"
+static const struct {{
+	const char *name;
+	size_t len;
+}} {}_literals[{}_N_LITERALS] = {{"#,
+        YYLVAR, YYLCONST
+    )?;
+
+    for literal in &lexstate.literals {
+        let bytes: Vec<u8> = literal.0.to_vec();
+        let lit_str = String::from_utf8(bytes).unwrap();
+        writeln!(output, r#"	{{ "{}", {} }},"#, lit_str, lit_str.len())?;
+    }
+
+    writeln!(output, "}};\n")?;
+
+    Ok(())
+}
+
 fn write_lexer(args: &Args, lexinfo: &LexInfo, lexstate: &LexState) -> io::Result<()> {
     let mut output: Box<dyn io::Write>;
 
@@ -555,11 +665,6 @@ fn write_lexer(args: &Args, lexinfo: &LexInfo, lexstate: &LexState) -> io::Resul
         write!(output, "{}", line)?;
     }
 
-    writeln!(output, "/* Substitution definitions */")?;
-    for (name, value) in &lexinfo.subs {
-        writeln!(output, "{} {}", name, value)?;
-    }
-
     writeln!(output, "/* Internal definitions */")?;
     for line in &lexinfo.internal_defs {
         write!(output, "{}", line)?;
@@ -570,14 +675,11 @@ fn write_lexer(args: &Args, lexinfo: &LexInfo, lexstate: &LexState) -> io::Resul
     writeln!(output, "%x {}", lexinfo.cond_xstart.join(" "))?;
 
     writeln!(output, "/* Rules */")?;
-    writeln!(output, "/* Rules - char classes */")?;
-    for class in &lexstate.classes {
-        writeln!(output, "{:?}", class)?;
-    }
-    writeln!(output, "/* Rules - literals */")?;
-    for literal in &lexstate.literals {
-        writeln!(output, "{:?}", literal)?;
-    }
+
+    write_lexer_char_classes(&mut output, lexstate, lexinfo)?;
+
+    write_lexer_literals(&mut output, lexstate, lexinfo)?;
+
     writeln!(output, "/* Rules - table */")?;
     for rule in &lexinfo.rules {
         writeln!(output, "{} {}", rule.ere, rule.action)?;
