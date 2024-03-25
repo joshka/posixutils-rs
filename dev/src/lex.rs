@@ -141,7 +141,7 @@ impl ParseState {
 }
 
 // parse line from Definitions section
-fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str> {
+fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), String> {
     if line.len() == 0 {
         return Ok(());
     }
@@ -190,8 +190,9 @@ fn parse_def_line(state: &mut ParseState, line: &str) -> Result<(), &'static str
         let name = caps.get(1).unwrap().as_str();
         let value = caps.get(2).unwrap().as_str();
         state.subs.insert(String::from(name), String::from(value));
-    } else {
-        eprintln!("Unexpected line in definitions section: {}", line);
+    } else if !line.trim().is_empty() {
+        let msg = format!("Unexpected line in definitions section: {}", line);
+        return Err(msg);
     }
     Ok(())
 }
@@ -223,8 +224,6 @@ enum RegexType {
 fn find_ere_end(line: &str) -> Result<usize, &'static str> {
     let mut stack: Vec<RegexType> = Vec::new();
     let mut inside_brackets = false;
-
-    eprintln!("find_ere_end: {}", line);
 
     for (i, ch) in line.chars().enumerate() {
         match ch {
@@ -398,8 +397,6 @@ fn parse_lex_input(input: &[String]) -> Result<LexInfo, String> {
 
     let lexinfo = LexInfo::from(&state);
 
-    eprintln!("PARSE STATE: {:#?}", state);
-
     Ok(lexinfo)
 }
 
@@ -498,7 +495,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // write output to stdout or a file
     write_lexer(&args, &lexinfo)?;
 
-    println!("{:#?}", lexinfo);
+    println!("PARSED_LEX {:#?}", lexinfo);
 
     println!("Testing rules:");
     for rule in lexinfo.rules {
