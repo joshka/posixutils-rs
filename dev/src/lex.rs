@@ -15,7 +15,7 @@ use clap::Parser;
 use gettextrs::{bind_textdomain_codeset, textdomain};
 use plib::PROJECT_NAME;
 use regex::Regex;
-use regex_syntax::hir::Hir;
+use regex_syntax::hir::{self, Hir};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read};
@@ -101,11 +101,17 @@ struct LexStateRule {
 #[derive(Debug)]
 struct LexState {
     rules: Vec<LexStateRule>,
+    classes: Vec<hir::Class>,
+    literals: Vec<hir::Literal>,
 }
 
 impl LexState {
     fn new() -> LexState {
-        LexState { rules: Vec::new() }
+        LexState {
+            rules: Vec::new(),
+            classes: Vec::new(),
+            literals: Vec::new(),
+        }
     }
 }
 
@@ -453,6 +459,58 @@ fn concat_input_files(files: &[String]) -> io::Result<Vec<String>> {
     Ok(input)
 }
 
+fn gather_literals(hir: &Hir) -> Vec<hir::Literal> {
+    let mut literals = Vec::new();
+
+    match hir.kind() {
+        hir::HirKind::Literal(literal) => {
+            literals.push(literal.clone());
+        }
+        hir::HirKind::Concat(concat) => {
+            for hir in concat.iter() {
+                literals.append(&mut gather_literals(hir));
+            }
+        }
+        hir::HirKind::Alternation(alt) => {
+            for hir in alt.iter() {
+                literals.append(&mut gather_literals(hir));
+            }
+        }
+        hir::HirKind::Repetition(rep) => {
+            literals.append(&mut gather_literals(&rep.sub));
+        }
+        _ => {}
+    }
+
+    literals
+}
+
+fn gather_classes(hir: &Hir) -> Vec<hir::Class> {
+    let mut classes = Vec::new();
+
+    match hir.kind() {
+        hir::HirKind::Class(class) => {
+            classes.push(class.clone());
+        }
+        hir::HirKind::Concat(concat) => {
+            for hir in concat.iter() {
+                classes.append(&mut gather_classes(hir));
+            }
+        }
+        hir::HirKind::Alternation(alt) => {
+            for hir in alt.iter() {
+                classes.append(&mut gather_classes(hir));
+            }
+        }
+        hir::HirKind::Repetition(rep) => {
+            classes.append(&mut gather_classes(&rep.sub));
+        }
+        _ => {}
+    }
+
+    classes
+}
+
 // process LexInfo input, returning a LexState struct
 fn process_lex_info(lexinfo: &LexInfo) -> Result<LexState, String> {
     let mut lexstate = LexState::new();
@@ -464,6 +522,13 @@ fn process_lex_info(lexinfo: &LexInfo) -> Result<LexState, String> {
             return Err(e.to_string());
         } else {
             let re = re.unwrap();
+
+            let mut classes = gather_classes(&re);
+            lexstate.classes.append(&mut classes);
+
+            let mut literals = gather_literals(&re);
+            lexstate.literals.append(&mut literals);
+
             lexstate.rules.push(LexStateRule {
                 ere: rule.ere.clone(),
                 action: rule.action.clone(),
@@ -475,7 +540,7 @@ fn process_lex_info(lexinfo: &LexInfo) -> Result<LexState, String> {
     Ok(lexstate)
 }
 
-fn write_lexer(args: &Args, lexinfo: &LexInfo, _lexstate: &LexState) -> io::Result<()> {
+fn write_lexer(args: &Args, lexinfo: &LexInfo, lexstate: &LexState) -> io::Result<()> {
     let mut output: Box<dyn io::Write>;
 
     if args.stdout {
@@ -505,6 +570,15 @@ fn write_lexer(args: &Args, lexinfo: &LexInfo, _lexstate: &LexState) -> io::Resu
     writeln!(output, "%x {}", lexinfo.cond_xstart.join(" "))?;
 
     writeln!(output, "/* Rules */")?;
+    writeln!(output, "/* Rules - char classes */")?;
+    for class in &lexstate.classes {
+        writeln!(output, "{:?}", class)?;
+    }
+    writeln!(output, "/* Rules - literals */")?;
+    for literal in &lexstate.literals {
+        writeln!(output, "{:?}", literal)?;
+    }
+    writeln!(output, "/* Rules - table */")?;
     for rule in &lexinfo.rules {
         writeln!(output, "{} {}", rule.ere, rule.action)?;
     }
