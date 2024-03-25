@@ -282,7 +282,12 @@ fn translate_ere(state: &mut ParseState, ere: &str) -> Result<String, String> {
         if in_quotes && ch == '"' {
             in_quotes = false;
         } else if in_quotes {
-            re.push(ch);
+            match ch {
+                '*' => re.push_str(r"\x2a"),
+                '+' => re.push_str(r"\x2b"),
+                '{' => re.push_str(r"\x7b"),
+                _ => re.push(ch),
+            }
         } else if in_sub && ch == '}' {
             match state.subs.get(&sub_name) {
                 Some(value) => re.push_str(value),
