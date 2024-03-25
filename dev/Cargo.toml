@@ -12,6 +12,7 @@ clap = { version = "4", features = ["derive"] }
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 object = "0.33"
 regex = "1.10"
+regex-syntax = "0.8"
 
 [[bin]]
 name = "lex"

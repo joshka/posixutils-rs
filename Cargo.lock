@@ -600,6 +600,7 @@ dependencies = [
  "object",
  "plib",
  "regex",
+ "regex-syntax",
 ]
 
 [[package]]
