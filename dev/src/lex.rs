@@ -15,6 +15,7 @@ use clap::Parser;
 use gettextrs::{bind_textdomain_codeset, textdomain};
 use plib::PROJECT_NAME;
 use regex::Regex;
+use regex_syntax::hir::Hir;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read};
@@ -86,6 +87,25 @@ impl LexInfo {
             user_subs: state.user_subs.clone(),
             rules: state.rules.clone(),
         }
+    }
+}
+
+#[derive(Debug)]
+struct LexStateRule {
+    ere: String,
+    action: String,
+    re: Hir,
+}
+
+// post-processed tables and other pre-computed data based on LexInfo input
+#[derive(Debug)]
+struct LexState {
+    rules: Vec<LexStateRule>,
+}
+
+impl LexState {
+    fn new() -> LexState {
+        LexState { rules: Vec::new() }
     }
 }
 
@@ -284,6 +304,7 @@ fn translate_ere(state: &mut ParseState, ere: &str) -> Result<String, String> {
             match ch {
                 '*' => re.push_str(r"\x2a"),
                 '+' => re.push_str(r"\x2b"),
+                '.' => re.push_str(r"\x2e"),
                 '{' => re.push_str(r"\x7b"),
                 _ => re.push(ch),
             }
@@ -432,7 +453,29 @@ fn concat_input_files(files: &[String]) -> io::Result<Vec<String>> {
     Ok(input)
 }
 
-fn write_lexer(args: &Args, lexinfo: &LexInfo) -> io::Result<()> {
+// process LexInfo input, returning a LexState struct
+fn process_lex_info(lexinfo: &LexInfo) -> Result<LexState, String> {
+    let mut lexstate = LexState::new();
+
+    for rule in &lexinfo.rules {
+        let re = regex_syntax::parse(&rule.ere);
+        if let Err(e) = re {
+            eprintln!("ERE failed: {}", &rule.ere);
+            return Err(e.to_string());
+        } else {
+            let re = re.unwrap();
+            lexstate.rules.push(LexStateRule {
+                ere: rule.ere.clone(),
+                action: rule.action.clone(),
+                re,
+            });
+        }
+    }
+
+    Ok(lexstate)
+}
+
+fn write_lexer(args: &Args, lexinfo: &LexInfo, _lexstate: &LexState) -> io::Result<()> {
     let mut output: Box<dyn io::Write>;
 
     if args.stdout {
@@ -492,24 +535,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse input lex file into a data structure containing the rules table
     let lexinfo = parse_lex_input(&rawinput)?;
 
+    // calculate tables and other pre-computed data based on LexInfo input
+    let lexstate = process_lex_info(&lexinfo)?;
+
     // write output to stdout or a file
-    write_lexer(&args, &lexinfo)?;
+    write_lexer(&args, &lexinfo, &lexstate)?;
 
     println!("PARSED_LEX {:#?}", lexinfo);
-
-    println!("Testing rules:");
-    for rule in lexinfo.rules {
-        println!("--");
-        let re = regex_syntax::parse(&rule.ere);
-        if let Err(e) = re {
-            eprintln!("ERE failed: {}", &rule.ere);
-            eprintln!("Error: {}", e);
-        } else {
-            let re = re.unwrap();
-            println!("ERE: {}", &rule.ere);
-            println!("ERE: {:?}", re);
-        }
-    }
+    println!("LEX_STATE {:#?}", lexstate);
 
     Ok(())
 }
