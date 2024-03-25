@@ -108,9 +108,9 @@ https://github.com/jgarzik/posixutils
  - [ ] man
  - [x] mesg
  - [ ] mkdir
- - [ ] mkfifo
+ - [x] mkfifo
  - [ ] more
- - [ ] mv
+ - [x] mv
  - [ ] newgrp
  - [x] nice
  - [ ] nl
@@ -151,7 +151,7 @@ https://github.com/jgarzik/posixutils
  - [ ] strings
  - [ ] strip (Development)
  - [x] stty
- - [ ] tabs
+ - [x] tabs
  - [ ] tail
  - [ ] talk
  - [x] tee

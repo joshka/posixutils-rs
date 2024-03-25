@@ -1,6 +1,6 @@
 [package]
 name = "posixutils-tree"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Jeff Garzik"]
 license = "MIT"
@@ -25,6 +25,14 @@ path = "src/link.rs"
 [[bin]]
 name = "ln"
 path = "src/ln.rs"
+
+[[bin]]
+name = "mkfifo"
+path = "src/mkfifo.rs"
+
+[[bin]]
+name = "mv"
+path = "src/mv.rs"
 
 [[bin]]
 name = "rm"
