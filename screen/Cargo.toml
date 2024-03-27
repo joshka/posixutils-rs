@@ -1,6 +1,6 @@
 [package]
 name = "posixutils-screen"
-version = "0.1.1"
+version = "0.1.3"
 edition = "2021"
 authors = ["Jeff Garzik"]
 license = "MIT"
@@ -17,6 +17,10 @@ libc = "0.2"
 [[bin]]
 name = "stty"
 path = "src/stty.rs"
+
+[[bin]]
+name = "tabs"
+path = "src/tabs.rs"
 
 [[bin]]
 name = "tput"

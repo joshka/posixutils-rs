@@ -6,6 +6,14 @@
 // file in the root directory of this project.
 // SPDX-License-Identifier: MIT
 //
+// TODO:
+// - investigate whether Rust crates such as crc32fast provide this
+//   functionality more efficiently.  It was tested, and did not work;
+//   However, it is theorized that the polynomial was correct,
+//   and the source of the error was that the final input data size
+//   was not appended to the CRC calculation.  The likely solution is
+//   a Rust crate + our finalize() function.
+//
 
 extern crate clap;
 extern crate plib;
@@ -48,10 +56,18 @@ fn cksum_file(filename: &str) -> io::Result<()> {
         crc = crc32::update(crc, &buffer[0..n_read]);
     }
 
+    let filename_prefix = {
+        if filename == "" {
+            ""
+        } else {
+            " "
+        }
+    };
     println!(
-        "{} {} {}",
+        "{} {}{}{}",
         crc32::finalize(crc, n_bytes as usize),
         n_bytes,
+        filename_prefix,
         filename
     );
 
@@ -73,12 +89,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut exit_code = 0;
 
     for filename in &args.files {
-        match cksum_file(filename) {
-            Ok(()) => {}
-            Err(e) => {
-                exit_code = 1;
-                eprintln!("{}: {}", filename, e);
-            }
+        if let Err(e) = cksum_file(filename) {
+            exit_code = 1;
+            eprintln!("{}: {}", filename, e);
         }
     }
 

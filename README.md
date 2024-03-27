@@ -50,20 +50,20 @@ https://github.com/jgarzik/posixutils
  - [x] cat
  - [ ] cflow (Development)
  - [ ] chgrp
- - [ ] chmod
+ - [x] chmod
  - [ ] chown
  - [x] cksum
  - [ ] cmp
- - [ ] comm
+ - [x] comm
  - [ ] compress (compress cat.)
- - [ ] cp
+ - [x] cp
  - [ ] crontab (cron cat.)
  - [ ] csplit
  - [ ] ctags (Development)
  - [ ] cut
  - [ ] cxref (Development)
  - [ ] date
- - [ ] dd
+ - [x] dd
  - [ ] delta (SCCS)
  - [x] df
  - [ ] diff
@@ -74,11 +74,11 @@ https://github.com/jgarzik/posixutils
  - [x] env
  - [ ] ex
  - [x] expand
- - [ ] expr
+ - [x] expr
  - [x] false
  - [ ] file
  - [ ] find
- - [ ] fold
+ - [x] fold
  - [ ] fort77 (Development)
  - [ ] fuser
  - [ ] gencat (i18n)
@@ -92,7 +92,7 @@ https://github.com/jgarzik/posixutils
  - [x] ipcrm (IPC)
  - [ ] ipcs (IPC)
  - [ ] join
- - [ ] kill
+ - [x] kill
  - [ ] lex (Development)
  - [x] link
  - [x] ln
@@ -108,9 +108,9 @@ https://github.com/jgarzik/posixutils
  - [ ] man
  - [x] mesg
  - [ ] mkdir
- - [ ] mkfifo
+ - [x] mkfifo
  - [ ] more
- - [ ] mv
+ - [x] mv
  - [ ] newgrp
  - [x] nice
  - [ ] nl
@@ -122,10 +122,10 @@ https://github.com/jgarzik/posixutils
  - [ ] pathchk
  - [ ] pax
  - [ ] pr
- - [ ] printf
+ - [x] printf
  - [ ] prs (SCCS)
  - [ ] ps
- - [ ] pwd
+ - [x] pwd
  - [ ] qalter (Batch cat.)
  - [ ] qdel (Batch cat.)
  - [ ] qhold (Batch cat.)
@@ -138,7 +138,7 @@ https://github.com/jgarzik/posixutils
  - [ ] qstat (Batch cat.)
  - [ ] qsub (Batch cat.)
  - [x] renice
- - [ ] rm
+ - [x] rm
  - [ ] rmdel (SCCS)
  - [x] rmdir
  - [ ] sact (SCCS)
@@ -151,13 +151,13 @@ https://github.com/jgarzik/posixutils
  - [ ] strings
  - [ ] strip (Development)
  - [x] stty
- - [ ] tabs
+ - [x] tabs
  - [ ] tail
  - [ ] talk
  - [x] tee
  - [ ] test
  - [ ] time
- - [ ] touch
+ - [x] touch
  - [x] tput
  - [ ] tr
  - [x] true
@@ -182,7 +182,7 @@ https://github.com/jgarzik/posixutils
  - [ ] what (SCCS)
  - [ ] who
  - [ ] write
- - [ ] xargs
+ - [x] xargs
  - [ ] yacc (Development)
  - [ ] zcat (compress cat.)
 

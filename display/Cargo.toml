@@ -1,6 +1,6 @@
 [package]
 name = "posixutils-display"
-version = "0.1.1"
+version = "0.1.3"
 edition = "2021"
 authors = ["Jeff Garzik"]
 license = "MIT"
@@ -14,4 +14,8 @@ gettext-rs = { version = "0.7", features = ["gettext-system"] }
 [[bin]]
 name = "echo"
 path = "src/echo.rs"
+
+[[bin]]
+name = "printf"
+path = "src/printf.rs"
 

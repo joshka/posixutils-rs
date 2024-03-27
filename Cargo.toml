@@ -2,12 +2,12 @@
 resolver = "2"
 
 members = [
+	"calc",
 	"datetime",
 	"dev",
 	"display",
 	"file",
 	"fs",
-	"link",
 	"misc",
 	"pathnames",
 	"plib",
