@@ -16,6 +16,7 @@ enum CTokenType {
     StreamEnd,
     Number(String),
     Str(bool, bool, String),
+    Ident(String),
 }
 
 pub struct CToken {
@@ -391,8 +392,39 @@ impl CStream {
         EOF
     }
 
-    pub fn get_one_identifier(&mut self, _c: i32) -> i32 {
-        EOF // TODO
+    pub fn get_one_identifier(&mut self, c: i32) -> i32 {
+        let mut buf = String::with_capacity(80);
+
+        buf.push((c as u8) as char);
+        let mut next;
+
+        loop {
+            next = self.nextchar();
+
+            let class = classify_char(next);
+            if (class & (CC_LETTER | CC_DIGIT)) == 0 {
+                break;
+            }
+
+            buf.push((next as u8) as char);
+        }
+
+        if (classify_char(next) & CC_QUOTE) != 0 {
+            if buf.len() == 1 && (buf.as_bytes()[0] as char) == 'L' {
+                let nextnext = self.nextchar();
+                if next == '"' as i32 {
+                    return self.eat_string(nextnext, true, true);
+                } else {
+                    return self.eat_string(nextnext, false, true);
+                }
+            }
+        }
+
+        self.tokenlist.push(CToken {
+            ttype: CTokenType::Ident(buf),
+        });
+
+        next
     }
 
     pub fn get_one_token(&mut self, c: i32) -> i32 {
