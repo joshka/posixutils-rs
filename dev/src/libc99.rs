@@ -244,11 +244,40 @@ impl CStream {
     }
 
     pub fn drop_comment(&mut self) -> i32 {
-        EOF // TODO
+        // todo: drop_token() -- adjust stream {newline,whitespace}
+
+        let newline = self.newline;
+        let mut next = self.nextchar();
+        loop {
+            let curr = next;
+            if curr < 0 {
+                // todo: warning EOF-in-comment
+                return curr;
+            }
+
+            next = self.nextchar();
+            if curr == (b'*' as i32) && next == (b'/' as i32) {
+                break;
+            }
+        }
+
+        self.newline = newline;
+
+        self.nextchar()
     }
 
     pub fn drop_eoln(&mut self) -> i32 {
-        EOF // TODO
+        // todo: drop_token() -- adjust stream {newline,whitespace}
+        loop {
+            let c = self.nextchar();
+            if c < 0 {
+                return c;
+            }
+
+            if (c as u8) as char == '\n' {
+                return self.nextchar();
+            }
+        }
     }
 
     pub fn eat_string(&mut self, _next: i32, _is_str: bool, _is_wide: bool) -> i32 {
