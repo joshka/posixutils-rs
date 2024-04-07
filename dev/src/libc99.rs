@@ -15,6 +15,7 @@ enum CTokenType {
     StreamBegin,
     StreamEnd,
     Number(String),
+    Str(bool, bool, String),
 }
 
 pub struct CToken {
@@ -280,8 +281,51 @@ impl CStream {
         }
     }
 
-    pub fn eat_string(&mut self, _next: i32, _is_str: bool, _is_wide: bool) -> i32 {
-        EOF // TODO
+    pub fn eat_string(&mut self, mut next: i32, is_str: bool, is_wide: bool) -> i32 {
+        let delim = match is_str {
+            true => '"',
+            false => '\'',
+        };
+        let mut escape = false;
+        let mut want_hex = false;
+        let mut tmpstr = String::with_capacity(80);
+
+        while escape || next != delim as i32 {
+            tmpstr.push((next as u8) as char);
+            if next == b'\n' as i32 {
+                // todo -- warning -- unterminated string
+                break;
+            }
+            if next < 0 {
+                // todo -- warning -- EOF in string
+                return next;
+            }
+            if !escape {
+                if want_hex && classify_char(next) & CC_HEX != 0 {
+                    // todo -- warning -- no following hex digits
+                }
+                want_hex = false;
+                if next == b'\\' as i32 {
+                    escape = true;
+                }
+            } else {
+                escape = false;
+                if next == b'x' as i32 {
+                    want_hex = true;
+                }
+            }
+            next = self.nextchar();
+        }
+
+        if want_hex {
+            // todo -- warning -- no following hex digits
+        }
+
+        self.tokenlist.push(CToken {
+            ttype: CTokenType::Str(is_str, is_wide, tmpstr),
+        });
+
+        self.nextchar()
     }
 
     pub fn get_one_number(&mut self, c: i32, mut next: i32) -> i32 {
