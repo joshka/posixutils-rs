@@ -10,6 +10,30 @@
 const TABSTOP: i32 = 8;
 const EOF: i32 = -1;
 
+enum CTokenSpecial {
+    AddAssign,
+    DivAssign,
+    XorAssign,
+    LogicalAnd,
+    HashHash,
+    LeftShift,
+    LTE,
+    NotEqual,
+    ModAssign,
+    Decrement,
+    SubAssign,
+    Dereference,
+    Equal,
+    AndAssign,
+    MulAssign,
+    DotDot,
+    Increment,
+    OrAssign,
+    GTE,
+    LogicalOr,
+    RightShift,
+}
+
 enum CTokenType {
     Invalid,
     StreamBegin,
@@ -17,6 +41,8 @@ enum CTokenType {
     Number(String),
     Str(bool, bool, String),
     Ident(String),
+    Special(CTokenSpecial),
+    SpecialChar(char),
 }
 
 pub struct CToken {
@@ -66,6 +92,33 @@ const CC_EXP: u32 = 1 << 3;
 const CC_SECOND: u32 = 1 << 4;
 const CC_QUOTE: u32 = 1 << 5;
 const CC_DOT: u32 = 1 << 6;
+
+fn classify_special(c1: i32, c2: i32) -> Option<CTokenSpecial> {
+    match (c1 as u8, c2 as u8) {
+        (b'+', b'=') => Some(CTokenSpecial::AddAssign),
+        (b'/', b'=') => Some(CTokenSpecial::DivAssign),
+        (b'^', b'=') => Some(CTokenSpecial::XorAssign),
+        (b'&', b'&') => Some(CTokenSpecial::LogicalAnd),
+        (b'#', b'#') => Some(CTokenSpecial::HashHash),
+        (b'<', b'<') => Some(CTokenSpecial::LeftShift),
+        (b'<', b'=') => Some(CTokenSpecial::LTE),
+        (b'!', b'=') => Some(CTokenSpecial::NotEqual),
+        (b'%', b'=') => Some(CTokenSpecial::ModAssign),
+        (b'-', b'-') => Some(CTokenSpecial::Decrement),
+        (b'-', b'=') => Some(CTokenSpecial::SubAssign),
+        (b'-', b'>') => Some(CTokenSpecial::Dereference),
+        (b'=', b'=') => Some(CTokenSpecial::Equal),
+        (b'&', b'=') => Some(CTokenSpecial::AndAssign),
+        (b'*', b'=') => Some(CTokenSpecial::MulAssign),
+        (b'.', b'.') => Some(CTokenSpecial::DotDot),
+        (b'+', b'+') => Some(CTokenSpecial::Increment),
+        (b'|', b'=') => Some(CTokenSpecial::OrAssign),
+        (b'>', b'=') => Some(CTokenSpecial::GTE),
+        (b'|', b'|') => Some(CTokenSpecial::LogicalOr),
+        (b'>', b'>') => Some(CTokenSpecial::RightShift),
+        _ => None,
+    }
+}
 
 fn classify_char(c32: i32) -> u32 {
     let ch = (c32 as u8) as char;
@@ -383,13 +436,26 @@ impl CStream {
             _ => {}
         }
 
-        let mut value = c;
+        // process multi-character special token
+        // TODO: 3-character tokens?
         let mask = classify_char(next);
         if (mask & CC_SECOND) != 0 {
-            // TODO
+            if let Some(special) = classify_special(c, next) {
+                self.tokenlist.push(CToken {
+                    ttype: CTokenType::Special(special),
+                });
+                return self.nextchar();
+            }
         }
 
-        EOF
+        // fall through
+
+        // process single-character special token
+        self.tokenlist.push(CToken {
+            ttype: CTokenType::SpecialChar((c as u8) as char),
+        });
+
+        next
     }
 
     pub fn get_one_identifier(&mut self, c: i32) -> i32 {
