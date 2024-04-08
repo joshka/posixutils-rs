@@ -10,6 +10,7 @@
 const TABSTOP: i32 = 8;
 const EOF: i32 = -1;
 
+#[derive(Clone, Debug)]
 enum CTokenSpecial {
     AddAssign,
     DivAssign,
@@ -32,6 +33,9 @@ enum CTokenSpecial {
     GTE,
     LogicalOr,
     RightShift,
+    ShlAssign,
+    ShrAssign,
+    Ellipsis,
 }
 
 enum CTokenType {
@@ -92,6 +96,15 @@ const CC_EXP: u32 = 1 << 3;
 const CC_SECOND: u32 = 1 << 4;
 const CC_QUOTE: u32 = 1 << 5;
 const CC_DOT: u32 = 1 << 6;
+
+fn maybe_third_char(special: CTokenSpecial) -> Option<(u8, CTokenSpecial)> {
+    match special {
+        CTokenSpecial::LeftShift => Some((b'=', CTokenSpecial::ShlAssign)),
+        CTokenSpecial::RightShift => Some((b'=', CTokenSpecial::ShrAssign)),
+        CTokenSpecial::DotDot => Some((b'.', CTokenSpecial::Ellipsis)),
+        _ => None,
+    }
+}
 
 fn classify_special(c1: i32, c2: i32) -> Option<CTokenSpecial> {
     match (c1 as u8, c2 as u8) {
@@ -270,7 +283,7 @@ impl CStream {
                         continue;
                     }
 
-                    // TODO pass no-newline-at-EOF warnings
+                    // todo: warning no-newline-at-EOF
 
                     return EOF;
                 }
@@ -411,7 +424,7 @@ impl CStream {
     }
 
     pub fn get_one_special(&mut self, c: i32) -> i32 {
-        let next = self.nextchar();
+        let mut next = self.nextchar();
         let next_ch = (next as u8) as char;
         match (c as u8) as char {
             '.' => {
@@ -437,18 +450,37 @@ impl CStream {
         }
 
         // process multi-character special token
-        // TODO: 3-character tokens?
         let mask = classify_char(next);
         if (mask & CC_SECOND) != 0 {
             if let Some(special) = classify_special(c, next) {
+                match maybe_third_char(special.clone()) {
+                    // translate 2-char special into 3-char special
+                    Some((third, third_special)) => {
+                        next = self.nextchar();
+                        if next == third as i32 {
+                            self.tokenlist.push(CToken {
+                                ttype: CTokenType::Special(third_special),
+                            });
+                            return self.nextchar();
+                        }
+
+                        // fall through
+                    }
+
+                    None => {
+                        // fall through
+                        next = self.nextchar();
+                    }
+                }
+
+                // normal 2-char special
                 self.tokenlist.push(CToken {
                     ttype: CTokenType::Special(special),
                 });
-                return self.nextchar();
+
+                return next;
             }
         }
-
-        // fall through
 
         // process single-character special token
         self.tokenlist.push(CToken {
