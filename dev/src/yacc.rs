@@ -13,6 +13,7 @@ extern crate plib;
 use clap::Parser;
 use gettextrs::{bind_textdomain_codeset, textdomain};
 use plib::PROJECT_NAME;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -196,6 +197,82 @@ fn lex_yacc_input(input: &str) -> Vec<YFToken> {
     }
 
     tokens
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Associativity {
+    Left,
+    Right,
+    NonAssoc,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Token {
+    name: String,
+    typetag: Option<String>,
+    token_number: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+struct Symbol {
+    kind: SymbolKind,
+    name: String,
+    typetag: Option<String>, // Now Symbols can also have type tags
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SymbolKind {
+    Terminal,
+    NonTerminal,
+}
+
+#[derive(Debug, Clone)]
+struct Production {
+    head: Symbol, // Changed from String to Symbol to include type tag
+    body: Vec<Symbol>,
+    action: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct Precedence {
+    level: usize,
+    associativity: Associativity,
+    tokens: Vec<Token>,
+}
+
+#[derive(Debug, Clone)]
+struct Grammar {
+    start_symbol: String,
+    symbols: HashMap<String, Symbol>, // Tracks both terminals and non-terminals
+    precedences: Vec<Precedence>,
+    productions: Vec<Production>,
+    tail: String,
+}
+
+impl Grammar {
+    fn new() -> Self {
+        Grammar {
+            start_symbol: String::new(),
+            symbols: HashMap::new(),
+            precedences: Vec::new(),
+            productions: Vec::new(),
+            tail: String::new(),
+        }
+    }
+
+    fn add_production(&mut self, head: Symbol, body: Vec<Symbol>, action: Option<String>) {
+        let production = Production { head, body, action };
+        self.productions.push(production);
+    }
+
+    fn add_symbol(&mut self, name: String, kind: SymbolKind, typetag: Option<String>) {
+        let symbol = Symbol {
+            kind,
+            name: name.clone(),
+            typetag,
+        };
+        self.symbols.insert(name, symbol);
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
