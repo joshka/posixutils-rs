@@ -49,7 +49,7 @@ struct Args {
 }
 
 #[derive(Debug, PartialEq)]
-enum Token {
+enum YFToken {
     Identifier(String),
     CIdentifier(String),
     Number(String),
@@ -61,44 +61,50 @@ enum Token {
     PercentLCurl,          // %{
     PercentRCurl,          // %}
     Text(String),          // For capturing C code and union declarations
+    Colon,                 // :
+    Pipe,                  // |
+    Semicolon,             // ;
 }
 
 // Parse a single token from a string
-fn parse_token(value: &str) -> Token {
+fn parse_token(value: &str) -> YFToken {
     // Check for string or character literals
     if value.starts_with("\"") && value.ends_with("\"") && value.len() > 1 {
-        return Token::Literal(value[1..value.len() - 1].to_string(), true); // String literal
+        return YFToken::Literal(value[1..value.len() - 1].to_string(), true); // String literal
     } else if value.starts_with("'") && value.ends_with("'") && value.len() > 1 {
-        return Token::Literal(value[1..value.len() - 1].to_string(), false); // Character literal
+        return YFToken::Literal(value[1..value.len() - 1].to_string(), false); // Character literal
     }
 
     // Existing conditions for other token types
     if value.starts_with("%") {
-        Token::ReservedWord(value.to_string())
+        YFToken::ReservedWord(value.to_string())
     } else if value.chars().all(char::is_numeric) {
-        Token::Number(value.to_string())
+        YFToken::Number(value.to_string())
     } else if value.ends_with(':') {
-        Token::CIdentifier(value[..value.len() - 1].to_string())
+        YFToken::CIdentifier(value[..value.len() - 1].to_string())
     } else {
-        Token::Identifier(value.to_string())
+        YFToken::Identifier(value.to_string())
     }
 }
 
 // Lex the input string into tokens
-fn lex_yacc_input(input: &str) -> Vec<Token> {
+fn lex_yacc_input(input: &str) -> Vec<YFToken> {
     let mut tokens = Vec::new();
     let mut current = String::new();
     let mut chars = input.chars().peekable();
     let mut brace_depth = 0;
     let mut in_percent_brace_block = false;
+    let mut n_marks = 0;
 
     while let Some(c) = chars.next() {
-        if in_percent_brace_block {
+        if n_marks >= 2 {
+            current.push(c);
+        } else if in_percent_brace_block {
             if c == '%' && chars.peek() == Some(&'}') {
                 chars.next();
-                tokens.push(Token::Text(current.clone()));
+                tokens.push(YFToken::Text(current.clone()));
                 current.clear();
-                tokens.push(Token::PercentRCurl);
+                tokens.push(YFToken::PercentRCurl);
                 in_percent_brace_block = false;
             } else {
                 current.push(c);
@@ -107,9 +113,9 @@ fn lex_yacc_input(input: &str) -> Vec<Token> {
             if c == '}' {
                 brace_depth -= 1;
                 if brace_depth == 0 {
-                    tokens.push(Token::Text(current.clone()));
+                    tokens.push(YFToken::Text(current.clone()));
                     current.clear();
-                    tokens.push(Token::RCurl);
+                    tokens.push(YFToken::RCurl);
                 } else {
                     current.push(c);
                 }
@@ -127,6 +133,18 @@ fn lex_yacc_input(input: &str) -> Vec<Token> {
                         current.clear();
                     }
                 }
+                ':' | '|' | ';' => {
+                    if !current.is_empty() {
+                        tokens.push(parse_token(&current));
+                        current.clear();
+                    }
+                    match c {
+                        ':' => tokens.push(YFToken::Colon),
+                        '|' => tokens.push(YFToken::Pipe),
+                        ';' => tokens.push(YFToken::Semicolon),
+                        _ => unreachable!(),
+                    }
+                }
                 '%' => {
                     if !current.is_empty() {
                         tokens.push(parse_token(&current));
@@ -134,10 +152,11 @@ fn lex_yacc_input(input: &str) -> Vec<Token> {
                     }
                     if chars.peek() == Some(&'%') {
                         chars.next(); // Consume the second %
-                        tokens.push(Token::Mark); // This is the '%%' token
+                        tokens.push(YFToken::Mark); // This is the '%%' token
+                        n_marks += 1;
                     } else if chars.peek() == Some(&'{') {
                         chars.next();
-                        tokens.push(Token::PercentLCurl);
+                        tokens.push(YFToken::PercentLCurl);
                         in_percent_brace_block = true;
                     } else {
                         let mut directive = String::from("%");
@@ -148,7 +167,7 @@ fn lex_yacc_input(input: &str) -> Vec<Token> {
                             directive.push(ch);
                             chars.next();
                         }
-                        tokens.push(Token::ReservedWord(directive));
+                        tokens.push(YFToken::ReservedWord(directive));
                     }
                 }
                 '{' => {
@@ -156,11 +175,11 @@ fn lex_yacc_input(input: &str) -> Vec<Token> {
                         tokens.push(parse_token(&current));
                         current.clear();
                     }
-                    tokens.push(Token::LCurl);
+                    tokens.push(YFToken::LCurl);
                     brace_depth = 1;
                 }
                 '}' => {
-                    tokens.push(Token::RCurl);
+                    tokens.push(YFToken::RCurl);
                 }
                 _ => current.push(c),
             }
@@ -169,7 +188,11 @@ fn lex_yacc_input(input: &str) -> Vec<Token> {
 
     // Handle any remaining characters as a token
     if !current.is_empty() {
-        tokens.push(parse_token(&current));
+        if n_marks >= 2 {
+            tokens.push(YFToken::Text(current.clone()));
+        } else {
+            tokens.push(parse_token(&current));
+        }
     }
 
     tokens
