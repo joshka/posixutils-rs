@@ -11,7 +11,7 @@ extern crate clap;
 extern crate plib;
 
 use clap::Parser;
-use gettextrs::{bind_textdomain_codeset, textdomain};
+use gettextrs::{bind_textdomain_codeset, setlocale, textdomain, LocaleCategory};
 use plib::PROJECT_NAME;
 use std::{fs, io};
 
@@ -19,7 +19,7 @@ use std::{fs, io};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about)]
 struct Args {
-    /// The pathname of an existing file.
+    /// An existing pathname to be unlinked (removed).
     pathname: String,
 }
 
@@ -33,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse command line arguments
     let args = Args::parse();
 
+    setlocale(LocaleCategory::LcAll, "");
     textdomain(PROJECT_NAME)?;
     bind_textdomain_codeset(PROJECT_NAME, "UTF-8")?;
 
@@ -40,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Err(e) = do_unlink(&args.pathname) {
         exit_code = 1;
-        eprintln!("{}: {}", args.pathname, e);
+        eprintln!("unlink: {}: {}", args.pathname, e);
     }
 
     std::process::exit(exit_code)

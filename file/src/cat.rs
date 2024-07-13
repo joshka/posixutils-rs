@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2024 Jeff Garzik
+// Copyright (c) 2024 Hemi Labs, Inc.
 //
 // This file is part of the posixutils-rs project covered under
 // the MIT License.  For the full license text, please see the LICENSE
@@ -16,10 +16,10 @@ extern crate clap;
 extern crate plib;
 
 use clap::Parser;
-use gettextrs::{bind_textdomain_codeset, textdomain};
+use gettextrs::{bind_textdomain_codeset, setlocale, textdomain, LocaleCategory};
 use plib::PROJECT_NAME;
-use std::fs;
 use std::io::{self, Read, Write};
+use std::path::PathBuf;
 
 /// cat - concatenate and print files
 #[derive(Parser, Debug)]
@@ -30,17 +30,11 @@ struct Args {
     unbuffered: bool,
 
     /// Files to read as input.  Use "-" or no-args for stdin.
-    files: Vec<String>,
+    files: Vec<PathBuf>,
 }
 
-fn cat_file(filename: &str) -> io::Result<()> {
-    let mut file: Box<dyn Read>;
-    if filename == "-" {
-        file = Box::new(io::stdin().lock());
-    } else {
-        file = Box::new(fs::File::open(filename)?);
-    }
-
+fn cat_file(pathname: &PathBuf) -> io::Result<()> {
+    let mut file = plib::io::input_stream(pathname, true)?;
     let mut buffer = [0; plib::BUFSZ];
 
     loop {
@@ -59,12 +53,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse command line arguments
     let mut args = Args::parse();
 
+    setlocale(LocaleCategory::LcAll, "");
     textdomain(PROJECT_NAME)?;
     bind_textdomain_codeset(PROJECT_NAME, "UTF-8")?;
 
     // if no file args, read from stdin
     if args.files.is_empty() {
-        args.files.push(String::from("-"));
+        args.files.push(PathBuf::from("-"));
     }
 
     let mut exit_code = 0;
@@ -72,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for filename in &args.files {
         if let Err(e) = cat_file(filename) {
             exit_code = 1;
-            eprintln!("{}: {}", filename, e);
+            eprintln!("{}: {}", filename.display(), e);
         }
     }
 

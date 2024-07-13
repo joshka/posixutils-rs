@@ -6,16 +6,13 @@
 // file in the root directory of this project.
 // SPDX-License-Identifier: MIT
 //
-// TODO:
-// - the "-v" option is specified by POSIX and cannot be clap default -v
-//
 
 extern crate clap;
 extern crate plib;
 extern crate uname;
 
 use clap::Parser;
-use gettextrs::{bind_textdomain_codeset, textdomain};
+use gettextrs::{bind_textdomain_codeset, setlocale, textdomain, LocaleCategory};
 use plib::PROJECT_NAME;
 
 /// uname - return system name
@@ -43,7 +40,7 @@ struct Args {
     system: bool,
 
     /// Write the current version level of this release of the operating system implementation.
-    #[arg(short, long)]
+    #[arg(short = 'v', long)]
     osversion: bool,
 }
 
@@ -79,8 +76,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.release = true;
         args.system = true;
         args.osversion = true;
+    } else if !args.machine && !args.node && !args.release && !args.system && !args.osversion {
+        args.system = true;
     }
 
+    setlocale(LocaleCategory::LcAll, "");
     textdomain(PROJECT_NAME)?;
     bind_textdomain_codeset(PROJECT_NAME, "UTF-8")?;
 

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2024 Jeff Garzik
+// Copyright (c) 2024 Hemi Labs, Inc.
 //
 // This file is part of the posixutils-rs project covered under
 // the MIT License.  For the full license text, please see the LICENSE
@@ -11,10 +11,10 @@ extern crate clap;
 extern crate plib;
 
 use clap::Parser;
-use gettextrs::{bind_textdomain_codeset, textdomain};
+use gettextrs::{bind_textdomain_codeset, setlocale, textdomain, LocaleCategory};
 use plib::PROJECT_NAME;
-use std::fs;
 use std::io::{self, BufWriter, Read, Write};
+use std::path::PathBuf;
 
 /// expand - convert tabs to spaces
 #[derive(Parser, Debug)]
@@ -25,7 +25,7 @@ struct Args {
     tablist: Option<String>,
 
     /// Files to read as input.
-    files: Vec<String>,
+    files: Vec<PathBuf>,
 }
 
 enum TabList {
@@ -67,14 +67,9 @@ fn space_out(column: &mut usize, writer: &mut BufWriter<dyn Write>) -> io::Resul
     Ok(())
 }
 
-fn expand_file(tablist: &TabList, filename: &str) -> io::Result<()> {
+fn expand_file(tablist: &TabList, pathname: &PathBuf) -> io::Result<()> {
     // open file, or stdin
-    let mut file: Box<dyn Read>;
-    if filename == "" {
-        file = Box::new(io::stdin().lock());
-    } else {
-        file = Box::new(fs::File::open(filename)?);
-    }
+    let mut file = plib::io::input_stream(pathname, false)?;
 
     let mut raw_buffer = [0; plib::BUFSZ];
     let mut writer = BufWriter::new(io::stdout());
@@ -141,6 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse command line arguments
     let mut args = Args::parse();
 
+    setlocale(LocaleCategory::LcAll, "");
     textdomain(PROJECT_NAME)?;
     bind_textdomain_codeset(PROJECT_NAME, "UTF-8")?;
 
@@ -160,7 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // if no files, read from stdin
     if args.files.is_empty() {
-        args.files.push(String::new());
+        args.files.push(PathBuf::new());
     }
 
     let mut exit_code = 0;
@@ -168,7 +164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for filename in &args.files {
         if let Err(e) = expand_file(&tablist, filename) {
             exit_code = 1;
-            eprintln!("{}: {}", filename, e);
+            eprintln!("{}: {}", filename.display(), e);
         }
     }
 

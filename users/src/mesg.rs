@@ -16,7 +16,7 @@ extern crate libc;
 extern crate plib;
 
 use clap::Parser;
-use gettextrs::{bind_textdomain_codeset, gettext, textdomain};
+use gettextrs::{bind_textdomain_codeset, gettext, setlocale, textdomain, LocaleCategory};
 use plib::PROJECT_NAME;
 use std::io::{self, Error, ErrorKind};
 use std::mem;
@@ -29,26 +29,36 @@ struct Args {
     operand: Option<String>,
 }
 
-fn find_tty() -> Result<i32, &'static str> {
-    let fds = vec![libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO];
-    for fd in fds {
-        unsafe {
-            if libc::isatty(fd) > 0 {
-                return Ok(fd);
-            }
+const STREAMS: [atty::Stream; 3] = [
+    atty::Stream::Stdin,
+    atty::Stream::Stdout,
+    atty::Stream::Stderr,
+];
+
+fn find_tty() -> Option<atty::Stream> {
+    for stream in STREAMS {
+        if atty::is(stream) {
+            return Some(stream);
         }
     }
 
-    Err("no tty found")
+    None
+}
+
+fn tty_to_fd(tty: atty::Stream) -> i32 {
+    match tty {
+        atty::Stream::Stdin => libc::STDIN_FILENO,
+        atty::Stream::Stdout => libc::STDOUT_FILENO,
+        atty::Stream::Stderr => libc::STDERR_FILENO,
+    }
 }
 
 fn stat_tty() -> io::Result<(i32, libc::stat)> {
-    let fd_res = find_tty();
-    if let Err(e) = fd_res {
-        eprintln!("{}", gettext(e));
-        return Err(Error::new(ErrorKind::Other, e));
+    let tty_res = find_tty();
+    if tty_res.is_none() {
+        return Err(Error::new(ErrorKind::Other, "tty not found"));
     }
-    let fd = fd_res.unwrap();
+    let fd = tty_to_fd(tty_res.unwrap());
 
     unsafe {
         let mut st: libc::stat = mem::zeroed();
@@ -115,6 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse command line arguments
     let args = Args::parse();
 
+    setlocale(LocaleCategory::LcAll, "");
     textdomain(PROJECT_NAME)?;
     bind_textdomain_codeset(PROJECT_NAME, "UTF-8")?;
 

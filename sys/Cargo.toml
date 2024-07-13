@@ -1,6 +1,6 @@
 [package]
 name = "posixutils-sys"
-version = "0.1.3"
+version = "0.1.12"
 edition = "2021"
 authors = ["Jeff Garzik"]
 license = "MIT"
@@ -8,16 +8,29 @@ repository = "https://github.com/rustcoreutils/posixutils-rs.git"
 
 [dependencies]
 plib = { path = "../plib" }
-clap = { version = "4", features = ["derive"] }
-gettext-rs = { version = "0.7", features = ["gettext-system"] }
+clap.workspace = true
+gettext-rs.workspace = true
 uname = "0.1"
-libc = "0.2"
+libc.workspace = true
+chrono.workspace = true
+
+[[bin]]
+name = "getconf"
+path = "src/getconf.rs"
 
 [[bin]]
 name = "ipcrm"
 path = "src/ipcrm.rs"
 
 [[bin]]
+name = "ipcs"
+path = "src/ipcs.rs"
+
+[[bin]]
 name = "uname"
 path = "src/uname.rs"
+
+[[bin]]
+name = "who"
+path = "src/who.rs"
 

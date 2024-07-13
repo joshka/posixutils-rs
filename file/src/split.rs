@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2024 Jeff Garzik
+// Copyright (c) 2024 Hemi Labs, Inc.
 //
 // This file is part of the posixutils-rs project covered under
 // the MIT License.  For the full license text, please see the LICENSE
@@ -11,11 +11,12 @@ extern crate clap;
 extern crate plib;
 
 use clap::Parser;
-use gettextrs::{bind_textdomain_codeset, textdomain};
+use gettextrs::{bind_textdomain_codeset, setlocale, textdomain, LocaleCategory};
 use plib::PROJECT_NAME;
 use std::cmp;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, Error, ErrorKind, Read, Write};
+use std::path::PathBuf;
 
 /// split - split a file into pieces
 #[derive(Parser, Debug)]
@@ -35,7 +36,7 @@ struct Args {
 
     /// File to be split
     #[arg(default_value = "")]
-    file: String,
+    file: PathBuf,
 
     /// Prefix of output files
     #[arg(default_value = "x")]
@@ -191,13 +192,7 @@ fn split_by_bytes(args: &Args, bytesplit: String) -> io::Result<()> {
     };
 
     // open file, or stdin
-    let mut file: Box<dyn Read>;
-    if args.file == "" {
-        file = Box::new(io::stdin().lock());
-    } else {
-        file = Box::new(fs::File::open(&args.file)?);
-    }
-
+    let mut file = plib::io::input_stream(&args.file, false)?;
     let mut raw_buffer = [0; plib::BUFSZ];
     let mut state = OutputState::new(&args.prefix, boundary, args.suffix_len);
 
@@ -221,14 +216,7 @@ fn split_by_lines(args: &Args, linesplit: u64) -> io::Result<()> {
     assert!(linesplit > 0);
 
     // open file, or stdin
-    let file: Box<dyn Read>;
-    if args.file == "" {
-        file = Box::new(io::stdin().lock());
-    } else {
-        file = Box::new(fs::File::open(&args.file)?);
-    }
-    let mut reader = io::BufReader::new(file);
-
+    let mut reader = plib::io::input_reader(&args.file, false)?;
     let mut state = OutputState::new(&args.prefix, linesplit, args.suffix_len);
 
     loop {
@@ -252,6 +240,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse command line arguments
     let mut args = Args::parse();
 
+    setlocale(LocaleCategory::LcAll, "");
     textdomain(PROJECT_NAME)?;
     bind_textdomain_codeset(PROJECT_NAME, "UTF-8")?;
 
