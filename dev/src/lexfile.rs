@@ -363,3 +363,93 @@ pub fn parse(input: &[String]) -> Result<LexInfo, String> {
 
     Ok(lexinfo)
 }
+
+#[cfg(test)]
+mod lextest {
+    use super::*;
+
+    #[test]
+    fn parse_posix_example() {
+        let test_content = r#"
+%{
+/* Need this for the call to atof() below. */
+#include <math.h>
+/* Need this for printf(), fopen(), and stdin below. */
+#include <stdio.h>
+%}
+
+
+DIGIT    [0-9]
+ID       [a-z][a-z0-9]*
+
+
+%%
+
+
+{DIGIT}+ {
+    printf("An integer: %s (%d)\n", yytext,
+        atoi(yytext));
+    }
+
+
+{DIGIT}+"."{DIGIT}*        {
+    printf("A float: %s (%g)\n", yytext,
+        atof(yytext));
+    }
+
+
+if|then|begin|end|procedure|function        {
+    printf("A keyword: %s\n", yytext);
+    }
+
+
+{ID}    printf("An identifier: %s\n", yytext);
+
+
+"+"|"-"|"*"|"/"        printf("An operator: %s\n", yytext);
+
+
+"{"[^}\n]*"}"    /* Eat up one-line comments. */
+
+
+[ \t\n]+        /* Eat up white space. */
+
+
+.  printf("Unrecognized character: %s\n", yytext);
+
+
+%%
+
+
+int main(int argc, char *argv[])
+{
+    ++argv, --argc;  /* Skip over program name. */
+    if (argc > 0)
+        yyin = fopen(argv[0], "r");
+    else
+        yyin = stdin;
+
+
+    yylex();
+}
+"#;
+
+        let input: Vec<String> = test_content.lines().map(|s| s.to_string()).collect();
+        let lexinfo = parse(&input).expect("parse failed");
+
+        assert_eq!(lexinfo.external_def.len(), 4);
+
+        assert_eq!(lexinfo.subs.len(), 2);
+        assert_eq!(lexinfo.subs.get("DIGIT").unwrap(), "[0-9]");
+        assert_eq!(lexinfo.subs.get("ID").unwrap(), "[a-z][a-z0-9]*");
+
+        assert_eq!(lexinfo.internal_defs.len(), 0);
+        assert_eq!(lexinfo.user_subs.len(), 13);
+        assert_eq!(lexinfo.cond_start.len(), 0);
+        assert_eq!(lexinfo.cond_xstart.len(), 0);
+        assert_eq!(lexinfo.yyt_is_ptr, true);
+
+        assert_eq!(lexinfo.rules.len(), 8);
+        assert_eq!(lexinfo.rules[0].ere, r#"[0-9]+"#);
+    }
+}
