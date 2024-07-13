@@ -12,7 +12,9 @@ clap.workspace = true
 gettext-rs.workspace = true
 object =  { version = "0.35", features = ["read", "build", "elf"]}
 chrono.workspace = true
+regex.workspace = true
 ar = "0.9"
+regex-syntax = "0.8"
 
 [[bin]]
 name = "lex"
